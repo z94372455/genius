@@ -1,0 +1,116 @@
+#цей робочий процес створіть контейнер докера, опубликуе його в Контейнер Google
+# Рёєсђр, и розгорнутй його в ГКЕ, коли ё поштовх до "основого"
+#виддиленна.
+#
+# Щоб налаштувати цей робочий процес:
+#
+# 1. Увімкніть такі API Google Cloud:
+#
+# - Рєєсђр артефактив (артефактрестратор oogleapi om)
+# - Google Kubernetes Engine (містить oogleapi om)
+# - IAM Credentials API (iamcredential oogleapi om)
+#
+# Ви можете дизнатися бильше про ввимкненная API за адресою
+# https://support.google.com/googleapi/answer/6158841.
+#
+# 2. Переконайтеся, що ваше сховище мыстить необхидну конфигурацию дя вас
+# Кластер Google Kubernetes Engine, включаючи разгортанн мл,
+# kustomizatio ml, servic ml тощо.
+#
+# 3. Створить и налаштуйте постачальная идентификацииных роботого навантаженная dlя GitHub:
+# https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation.
+#
+# Залежно вид того, як отэнтикуется, вам потрибно буде надати принципала IAM
+# дозволи в Google Cloud:
+#
+# - Адміністратор рєстру артефактив (roles/artifactregistr dmin)
+# - Розробник двигуна Кубернетес (роли/контейне евелопер)
+#
+# Ви можете дизнатися бильше про становленная дозволив IAM за адресою
+# https://cloud.google.com/iam/docs/manage-access-other-resources
+#
+# 5. Зминить значенный в блоци "энв", щоб вони видповыдали вашим значенным.
+
+назва: "Створенная та разгортанна в ГКЕ"
+
+на:
+ штовхати:
+ гілки:
+      - '"головний"'
+
+єнв:
+ PROJECT_ID: "мій проект" # TODO: оновленная идетыфікатора прода Google Cloud
+ GAR_LOCATION: "нас-центральний1" # TODO: оновленная до вашого региону
+ GKE_CLUSTER: "кластер-1" # TODO: оновленная назви кластера
+ GKE_ZONE: "us-central1-c" # TODO: оновленная до вашой кластерной зони
+ НАЗВА_РОЗГОРТАННЯ: "гке-тест" # ТОДО: оновленная имения разгортания
+ РЕПОЗІТОРІЙ: "зразки" # TODO: оновленная назви сховища докерив Артефакт Реєстр
+ ЗОБРАЗЕННАЯ: "статический сайт"
+ WORKLOAD_IDENTITY_PROVIDER: "проэкти/123456789/розташувана/глобальна/workloadIdentityPools/мій пул/провайдери/мій постачальник" # ТОДО: оновленная до вашого постачальная информации навантаженная
+
+джобс:
+ налаштуваті-побудуваті-опубликуваті-розгорнуті:
+ назва: "Налаштува́ння, створенная, публикация та розгорта́ння"
+ бігає: "убунту-останній"
+ середовище: "виробниство"
+
+ дозволи:
+ змист: "читати"
+ id-token: 'написати'
+
+    кроки:
+ - назва: 'Оформити замовлення'
+ використання: 'actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332' # actions/checkout@v4
+
+ # Налаштуйте федерацію ідентифікації робочого навантаження та створіть маркер доступу.
+      #
+ # Дивіться https://github.com/google-github-actions/auth для отримання додаткових варіантів,
+ # включаючи автентифікацію через файл облікових даних JSON.
+ - id: "auth"
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@f112390a2df9932162083945e46d439060d66ec2' # google-github-actions/auth@v2
+        with:
+          workload_identity_provider: '${{ env.WORKLOAD_IDENTITY_PROVIDER }}'
+
+      # Authenticate Docker to Google Cloud Artifact Registry
+      - name: 'Docker Auth'
+        uses: 'docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567' # docker/login-action@v3
+        with:
+          username: 'oauth2accesstoken'
+          password: '${{ steps.auth.outputs.auth_token }}'
+          registry: '${{ env.GAR_LOCATION }}-docker.pkg.dev'
+
+      # Get the GKE credentials so we can deploy to the cluster
+      - name: 'Set up GKE credentials'
+        uses: 'google-github-actions/get-gke-credentials@6051de21ad50fbb1767bc93c11357a49082ad116' # google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: '${{ env.GKE_CLUSTER }}'
+          location: '${{ env.GKE_ZONE }}'
+
+      # Build the Docker image
+      - name: 'Build and push Docker container'
+        run: |-
+          DOCKER_TAG="${GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE}:${GITHUB_SHA}"
+
+          docker build \
+            --tag "${DOCKER_TAG}" \
+            --build-arg GITHUB_SHA="${GITHUB_SHA}" \
+            --build-arg GITHUB_REF="${GITHUB_REF}" \
+            .
+
+          docker push "${DOCKER_TAG}"
+
+      # Set up kustomize
+      - name: 'Set up Kustomize'
+        run: |-
+          curl -sfLo kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz
+          chmod u+x ./kustomize
+
+      # Deploy the Docker image to the GKE cluster
+      - name: 'Deploy to GKE'
+        run: |-
+          # replacing the image name in the k8s template
+          ./kustomize edit set image LOCATION-docker.pkg.dev/PROJECT_ID/REPOSITORY/IMAGE:TAG=$GAR_LOCATION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE:$GITHUB_SHA
+          ./kustomize build . | kubectl apply -f -
+          kubectl rollout status deployment/$DEPLOYMENT_NAME
+          kubectl get services -o wide
