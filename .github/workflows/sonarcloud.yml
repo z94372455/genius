@@ -1,0 +1,67 @@
+#цей робочий процес використовуе дии, яки не сертификовани GitHub.
+# Вони надаются третьою строною и керуются
+# окрэмы умови обслугованная, политика конфиденцийности та пидтримка
+# документація.
+
+#цей робочий процес поможе вам инциювати анализ SonarCloud вашого коду та заповнюе
+# Поовищенная про сканувания коду GitHub из знайдений вразливостими.
+# Безкоштовно дя проэкту з видкритим кодом.
+
+# 1. Увійдіть в SonarClou о за помогою облiкового запису GitHub
+
+# 2. Импортуйте свій проект на SonarCloud
+# * Початьку додайте своу рганизацию GitHub, а потим додайте своу сховище як новый проект.
+# * Звернить увагу, щ багато мов мауть право на автоматичный анализ,
+# щo oзначаё, щo анализ розпочно без необхидности налаштуванный дйи GitHub.
+# * Ця повединка може бути в Администраванный > Метод аналізу.
+#
+# 3. Дотримуйтесь подручная з SonarCloud у продукти
+# * а. Скопіюйте/вставте klyuch proekt ta klyuch organiyzacii в parametr args nijche
+# (Ви знайдете цзю информацию в SonarCloud. Натиснить "Информация" внизу ливоруч)
+#
+# * б. Згенеруйте новой маркер и додайте його до секретив вашого сховища Гитхуб, використовуйчи назву SONAR_TOKEN
+# (У SonarCloud натиснить на свий аватар у верхньому правому кути > Мій облаковий запис > Безпека
+# або переидыть безпосередно до https://sonarcloud.io/account/security/)
+
+# Смиливо переглянте нашу документацию (https://docs.sonarcloud.io/getting-started/github/)
+# або звернитья до нашого форума спильноти, якщо вам помпоновать (https://community.sonarsource.com/c/help/sc/9)
+
+назва: Аналіз SonarCloud
+
+на:
+ штовхати:
+ гілки: [ "головний" ]
+ pull_request:
+гілки: [ "головний" ]
+ workflow_dispatch:
+
+дозволи:
+ pull-запити: читати # дозволяє SonarCloud прикрашати PR з результатами аналізу
+
+jobs:
+  Analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Analyze with SonarCloud
+
+        # You can pin the exact commit or the version.
+        # uses: SonarSource/sonarcloud-github-action@v2.2.0
+        uses: SonarSource/sonarcloud-github-action@4006f663ecaf1f8093e8e4abb9227f6041f52216
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # Generate a token on Sonarcloud.io, add it to the secrets of this repo with the name SONAR_TOKEN (Settings > Secrets > Actions > add new repository secret)
+        with:
+          # Additional arguments for the SonarScanner CLI
+          args:
+            # Unique keys of your project and organization. You can find them in SonarCloud > Information (bottom-left menu)
+            # mandatory
+            -Dsonar.projectKey=
+            -Dsonar.organization=
+            # Comma-separated paths to directories containing main source files.
+            #-Dsonar.sources= # optional, default is project base directory
+            # Comma-separated paths to directories containing test source files.
+            #-Dsonar.tests= # optional. For more info about Code Coverage, please refer to https://docs.sonarcloud.io/enriching/test-coverage/overview/
+            # Adds more detail to both client and server-side analysis logs, activating DEBUG mode for the scanner, and adding client-side environment variables and system properties to the server-side log of analysis report processing.
+            #-Dsonar.verbose= # optional, default is false
+          # When you need the analysis to take place in a directory other than the one from which it was launched, default is .
+          projectBaseDir: .
